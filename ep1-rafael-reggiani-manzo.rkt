@@ -146,3 +146,5 @@
 (test/exn (interp (binop / (num 8) (binop - (num 2) (num 2)))) "Division by 0")
 (test/exn (interp (with '() (binop + (id 'x) (num 2)))) "free identifier")
 (test (interp (with (list (binding 'x (num 2)) (binding 'y (num 3))) (with (list (binding 'z (binop + (id 'x) (id 'y)))) (binop + (id 'x) (id 'z))))) 7)
+
+(interp(parse(read)))

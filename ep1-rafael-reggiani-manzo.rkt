@@ -135,7 +135,7 @@
   (with (list (binding 'x (num 3)) (binding 'y (num 4))) (binop + (id 'x) (id 'z))))
 (test (subst_aux (with (list (binding 'x (num 3)) (binding 'y (num 4))) (binop + (id 'x) (id 'z))) 'z (num 5))  
   (with (list (binding 'y (num 4)) (binding 'x (num 3))) (binop + (id 'x) (num 5))))
-(test (subst_aux (with (list (binding 'z (binop + (id 'x) (id 'y)))) (binop + (id 'x) (id 'z))) 'x 2)
+(test (subst_aux (with (list (binding 'z (binop + (id 'x) (id 'y)))) (binop + (id 'x) (id 'z))) 'x (num 2))
   (with (list (binding 'z (binop + (num 2) (id 'y)))) (binop + (num 2) (id 'z))))
 
 ;;subst tests

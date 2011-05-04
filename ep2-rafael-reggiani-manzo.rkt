@@ -1,5 +1,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Primeiro Exercício-Programa: Interpretador Rudimentar    ;;
+;; Segundo Exercício-Programa: Interpretador Estendido      ;;
 ;; MAC0316/MAC5754 - Conceitos de Linguagens de Programação ;;
 ;;                                                          ;;
 ;; Rafael Reggiani Manzo                                    ;;
@@ -7,16 +7,32 @@
 ;; Bacharelado em Ciência da Computação                     ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;TODO Implementar substituição postergada
+;;TODO Testes e comentários para todas as funções
+;;TODO Implementar interpretação postergada (em arquivo separado)
+
 #lang plai
 
 (define-type Binding
   [binding (name symbol?) (named-expr WAE?)])
 
-(define-type WAE
+(define-type CFAE
   [num (n number?)] 
-  [binop (op procedure?) (lhs WAE?) (rhs WAE?)]
-  [with (lob (listof Binding?)) (body WAE?)]
-  [id (name symbol?)])
+  [binop (op procedure?) (lhs CFAE?) (rhs CFAE?)]
+  [id (name symbol?)]
+  [if0 (c CFAE?) (t CFAE?) (e CFAE?)]
+  [fun (args (listof symbol?)) (body CFAE?)]
+  [app (f CFAE?) (args (listof CFAE?))])
+
+(define-type Env
+  [mtEnv]
+  [anEnv (name symbol?) (value CFAE-Value?) (env Env?)])
+
+(define-type CFAE-Value
+  [numV (n number?)]
+  [closureV (params (listof symbol?))
+            (body CFAE?)
+            (env Env?)])
 
 ;; fing_binding : listofbinding binding -> boolean
 ;; auxiliary function that searches a list of bindings for a binding
@@ -38,6 +54,9 @@
         (error 'produce_lob (format "The name of a binding must be a symbol. Given: ~a" (first (car sexp)))))
       (error 'produce_lob "Invalid list length count")))) 
 
+;;TODO Adaptar with para aplicação de função
+;;TODO Implementar parse de funções
+;;TODO Implementar parse de with 0
 ;; parse : s-exp -> WAE
 ;; Consumes an s-expression and generates the corresponding WAE
 (define (parse sexp)
@@ -84,6 +103,8 @@
     [(= (length lob) 0) expr]
     [else (subst (subst_aux expr (binding-name (car lob)) (binding-named-expr (car lob))) (cdr lob))]))
 
+;;TODO Implementar parse de funções
+;;TODO Implementar parse de with 0
 ;; interp : WAE -> number
 ;; Consumes a WAE representation of an expression and computes
 ;;   the corresponding numerical result

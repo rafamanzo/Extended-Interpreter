@@ -7,7 +7,6 @@
 ;; Bacharelado em Ciência da Computação                     ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;;TODO Implementar substituição postergada
 ;;TODO Testes e comentários para todas as funções
 ;;TODO Implementar interpretação postergada (em arquivo separado)
 
@@ -33,10 +32,36 @@
             (body CFAE?)
             (env Env?)])
 
-;;TODO validar listas de simbolos (em busca de repetidos) 
-;;TODO Adaptar with para aplicação de função
-;;TODO Implementar parse de funções
-;;TODO Implementar parse de if0
+;; notinlist? : ? listof? precedure -> boolaen
+;; Checks if one item is in the given list
+(define (notinlist? item l pred)
+  (if (empty? l)
+    #t
+    (if (pred item (car l))
+      #f
+      (notinlist? item (cdr l) pred)))) 
+
+;; symbolListValidate-aux : listofsymbol -> Boolean
+;; Checks the list of symbol for duplicated symbols
+(define (symbolListValidate-aux l)
+  (if (empty? l)
+    #t
+    (if (notinlist? (car l) (cdr l) symbol=?)
+      (symbolListValidate-aux (cdr l))
+      #f)))
+
+;; symbolListValidate-aux : listofsymbol -> listofsymbol
+;; Checks the list of symbol for duplicated symbols
+(define (symbolListValidate l)
+  (if (symbolListValidate-aux l)
+    l
+    (error 'symbolListValidate "Symbol already taken")))
+
+;; itsaapp : s-expression -> CFAE
+;; creates an app from a s-expression
+(define (itsaapp sexp)
+  (app (parse (first sexp)) (map parse (cdr sexp))))
+
 ;; parse : s-exp -> CFAE
 ;; Consumes an s-expression and generates the corresponding CFAE
 (define (parse sexp)
@@ -45,21 +70,21 @@
     [(symbol? sexp) (id sexp)]
     [(list? sexp)
       (case (length sexp)
-        [(0 1 2) (error 'parse "Invalid list length")] 
+        [(0 1) (error 'parse "Invalid list length")] 
         [(3) (case (first sexp)
           [(+) (binop + (parse (second sexp)) (parse (third sexp)))]
           [(-) (binop - (parse (second sexp)) (parse (third sexp)))] 
           [(*) (binop * (parse (second sexp)) (parse (third sexp)))]
           [(/) (binop / (parse (second sexp)) (parse (third sexp)))]
-          [(with) (app (fun (map first (second sexp)) (parse (third sexp))) (map (lambda (l) (parse (second l))) (second sexp)))]
-          [(fun) (fun (second sexp) (parse (third sexp)))]
-          [else (error 'parse "Unexpected symbol")])]
-        [(4)  (if (symbol=? (first sexp) 'if0)
-          [(if0 (parse (second sexp)) (parse (third sexp)) (parse (third (cdr sexp))))]
-          [(error 'parse "Unexpected symbol")])]
-        [else 
-          (app (parse (second sexp)) (map parse (cdr (cdr sexp))))])]))
+          [(with) (app (fun (symbolListValidate (map first (second sexp))) (parse (third sexp))) (map (lambda (l) (parse (second l))) (second sexp)))]
+          [(fun) (fun (symbolListValidate (second sexp)) (parse (third sexp)))]
+          [else (itsaapp sexp)])]
+        [(4) (case (first sexp)  
+          [(if0) (if0 (parse (second sexp)) (parse (third sexp)) (parse (third (cdr sexp))))]
+          [else (itsaapp sexp)])]
+        [else (itsaapp sexp)])]))
 
+;;TODO Implementar substituição postergada
 ;;TODO Implementar interpretação de funções
 ;;TODO Implementar interpretação de with 0
 ;; interp : WAE -> number
@@ -75,23 +100,38 @@
 ;;    [with (lob bound-body) (interp (subst bound-body lob))]
 ;;    [id (v) (error 'interp "free identifier")]))
 
-(trace parse)
-;;TODO testes para if0, fun e app
+;; notinlist? tests
+;;(test (notinlist? 5 '(1 2 3 4) =) #t)
+;;(test (notinlist? 5 '(1 2 3 4 5) =) #f)
+;;(test (notinlist? 5 '() =) #t)
+
+;;symbolListValidate tests
+;;(test (symbolListValidate '(a b c)) '(a b c))
+;;(test/exn (symbolListValidate '(a b c c)) "Symbol already taken")
+;;(test (symbolListValidate '()) '())
+
+;;(trace parse)
 ;; parser tests
-(test (parse '{with {{x 2} {y 3}}
-                {with {{z {+ x y}}}
-                  {+ x z}}})
-  (app (fun '(x y)
-         (app (fun '(z) (binop + (id 'x) (id 'z))) (list (binop + (id 'x) (id 'y)))))
-         (list (num 2) (num 3))))
-(test (parse '{with {} {+ 2 x}}) (app (fun '() (binop + (num 2) (id 'x))) '()))
-(test/exn (parse '{macaco voador macaco}) "Unexpected symbol")
-(test/exn (parse '{+ 2}) "Invalid list length")
+;;(test (parse '{with {{x 2} {y 3}}
+;;                {with {{z {+ x y}}}
+;;                  {+ x z}}})
+;;  (app (fun '(x y)
+;;         (app (fun '(z) (binop + (id 'x) (id 'z))) (list (binop + (id 'x) (id 'y)))))
+;;         (list (num 2) (num 3))))
+;;(test (parse '{fun {x y} {* x y}}) (fun '(x y) (binop * (id 'x) (id 'y))))
+;;(test (parse '{macaco x 5 voador}) (app (id 'macaco) (list (id 'x) (num 5) (id 'voador))))
+;;(test (parse '{macaco voador macaco}) (app (id 'macaco) (list (id 'voador) (id 'macaco))))
+;;(test (parse '{with {} {+ 2 x}}) (app (fun '() (binop + (num 2) (id 'x))) '()))
+;;(test (parse '{if0 0 0 0}) (if0 (num 0) (num 0) (num 0))) 
+;;(test/exn (parse '{}) "Invalid list length")
+;;(test/exn (parse '{+}) "Invalid list length")
+;;(test/exn (parse '{with {{x 2} {x 3}} {x}}) "Symbol already taken")
+;;(test/exn (parse '{fun {x x} {x}}) "Symbol already taken")
 
 ;;interp tests
 ;;(test/exn (interp (binop / (num 8) (binop - (num 2) (num 2)))) "Division by 0")
 ;;(test/exn (interp (with '() (binop + (id 'x) (num 2)))) "free identifier")
 ;;(test (interp (with (list (binding 'x (num 2)) (binding 'y (num 3))) (with (list (binding 'z (binop + (id 'x) (id 'y)))) (binop + (id 'x) (id 'z))))) 7)
 
-(parse(read))
+;;(parse(read))
 ;;(interp(parse(read)))

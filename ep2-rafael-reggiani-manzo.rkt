@@ -84,21 +84,30 @@
           [else (itsaapp sexp)])]
         [else (itsaapp sexp)])]))
 
+;; operate : procedure numV numV -> num
+(define (operate o l r)    
+  (if (and (eq? o /) (= (numV-n r) 0))
+    (error 'operate "Division by 0")
+    (numV (o (numV-n l) (numV-n r)))))
+
 ;;TODO Implementar substituição postergada
 ;;TODO Implementar interpretação de funções
 ;;TODO Implementar interpretação de with 0
-;; interp : WAE -> number
-;; Consumes a WAE representation of an expression and computes
+;; interp : CFAE -> CFAE-Value
+;; Consumes a CFAE representation of an expression and computes
 ;;   the corresponding numerical result
-;;(define (interp expr)
-;;  (type-case WAE expr
-;;    [num (n) n]
-;;    [binop (o l r) 
-;;      (if (and (eq? o /) (= (interp r) 0))
-;;        (error 'interp "Division by 0")
-;;        (o (interp l) (interp r)))]
-;;    [with (lob bound-body) (interp (subst bound-body lob))]
-;;    [id (v) (error 'interp "free identifier")]))
+(define (interp expr env)
+  (type-case  CFAE expr
+    [num (n) (numV n)]
+    [binop (o l r) 
+      (operate o (interp l env) (interp r env))]
+    [if0 (c t e)
+      (if (= (numV-n (interp c env)) 0)
+        (interp t env)
+        (interp e env))]
+    [fun (args body)
+      (closureV 
+    [id (v) (error 'interp "Free identifier")]))
 
 ;; notinlist? tests
 ;;(test (notinlist? 5 '(1 2 3 4) =) #t)

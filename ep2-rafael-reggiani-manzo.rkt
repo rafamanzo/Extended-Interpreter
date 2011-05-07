@@ -84,18 +84,47 @@
           [else (itsaapp sexp)])]
         [else (itsaapp sexp)])]))
 
-;; operate : procedure numV numV -> num
+;; operate : procedure numV numV -> numV
+;; consumes two numVs and operates them returning the numV resultant
 (define (operate o l r)    
   (if (and (eq? o /) (= (numV-n r) 0))
     (error 'operate "Division by 0")
     (numV (o (numV-n l) (numV-n r)))))
 
-;;TODO Implementar substituição postergada
-;;TODO Implementar interpretação de funções
-;;TODO Implementar interpretação de with 0
+;; notinenv? : Env symbol -> Env
+;; checks if an indentifier isn't bound
+(define (notinenv? env id)
+  (if (mtEnv? env)
+    #t
+    (if (symbol=? id (anEnv-name env))
+      #f
+      (notinenv? (anEnv-env env) id))))
+
+;; generateEnv : listofsymbol listofCFAE Env -> Env
+;; consumes a list of params and another of args bounding them to the enviroment
+(define (generateEnv args vals env)
+  (if (and (empty? args) (empty? vals))
+    env
+    (if (empty? args)
+      (error 'generateEnv "Too many arguments")
+      (if (empty? vals)
+        (error 'generateEnv "More arguments were expected")
+        (if (notinenv? env (car args)) 
+          (generateEnv (cdr args) (cdr vals) (anEnv (car args) (interp (car vals) env) env))
+          (error 'generateEnv "Indentifier already bound"))))))
+
+;; lookup : symbol Env -> CFAE-Value
+(define (lookup name env)
+  (type-case Env env
+    [mtEnv () (error 'lookup "no binding for identifier")]
+    [anEnv (bound-name bound-value rest-env)
+      (if (symbol=? bound-name name)
+        bound-value
+        (lookup name rest-env))]))
+
 ;; interp : CFAE -> CFAE-Value
 ;; Consumes a CFAE representation of an expression and computes
-;;   the corresponding numerical result
+;;   the corresponding numV result
 (define (interp expr env)
   (type-case  CFAE expr
     [num (n) (numV n)]
@@ -106,41 +135,72 @@
         (interp t env)
         (interp e env))]
     [fun (args body)
-      (closureV 
-    [id (v) (error 'interp "Free identifier")]))
+      (closureV args body env)]
+    [app (f args)
+      (local ([define fun-val (interp f env)])
+        (interp
+          (closureV-body fun-val)
+          (generateEnv (closureV-params fun-val) args env)))]
+    [id (v) (lookup v env)]))
 
 ;; notinlist? tests
-;;(test (notinlist? 5 '(1 2 3 4) =) #t)
-;;(test (notinlist? 5 '(1 2 3 4 5) =) #f)
-;;(test (notinlist? 5 '() =) #t)
+(test (notinlist? 5 '(1 2 3 4) =) #t)
+(test (notinlist? 5 '(1 2 3 4 5) =) #f)
+(test (notinlist? 5 '() =) #t)
 
 ;;symbolListValidate tests
-;;(test (symbolListValidate '(a b c)) '(a b c))
-;;(test/exn (symbolListValidate '(a b c c)) "Symbol already taken")
-;;(test (symbolListValidate '()) '())
+(test (symbolListValidate '(a b c)) '(a b c))
+(test/exn (symbolListValidate '(a b c c)) "Symbol already taken")
+(test (symbolListValidate '()) '())
 
-;;(trace parse)
 ;; parser tests
-;;(test (parse '{with {{x 2} {y 3}}
-;;                {with {{z {+ x y}}}
-;;                  {+ x z}}})
-;;  (app (fun '(x y)
-;;         (app (fun '(z) (binop + (id 'x) (id 'z))) (list (binop + (id 'x) (id 'y)))))
-;;         (list (num 2) (num 3))))
-;;(test (parse '{fun {x y} {* x y}}) (fun '(x y) (binop * (id 'x) (id 'y))))
-;;(test (parse '{macaco x 5 voador}) (app (id 'macaco) (list (id 'x) (num 5) (id 'voador))))
-;;(test (parse '{macaco voador macaco}) (app (id 'macaco) (list (id 'voador) (id 'macaco))))
-;;(test (parse '{with {} {+ 2 x}}) (app (fun '() (binop + (num 2) (id 'x))) '()))
-;;(test (parse '{if0 0 0 0}) (if0 (num 0) (num 0) (num 0))) 
-;;(test/exn (parse '{}) "Invalid list length")
-;;(test/exn (parse '{+}) "Invalid list length")
-;;(test/exn (parse '{with {{x 2} {x 3}} {x}}) "Symbol already taken")
-;;(test/exn (parse '{fun {x x} {x}}) "Symbol already taken")
+(test (parse '{with {{x 2} {y 3}}
+                {with {{z {+ x y}}}
+                  {+ x z}}})
+  (app (fun '(x y)
+         (app (fun '(z) (binop + (id 'x) (id 'z))) (list (binop + (id 'x) (id 'y)))))
+         (list (num 2) (num 3))))
+(test (parse '{fun {x y} {* x y}}) (fun '(x y) (binop * (id 'x) (id 'y))))
+(test (parse '{macaco x 5 voador}) (app (id 'macaco) (list (id 'x) (num 5) (id 'voador))))
+(test (parse '{macaco voador macaco}) (app (id 'macaco) (list (id 'voador) (id 'macaco))))
+(test (parse '{with {} {+ 2 x}}) (app (fun '() (binop + (num 2) (id 'x))) '()))
+(test (parse '{if0 0 0 0}) (if0 (num 0) (num 0) (num 0))) 
+(test/exn (parse '{}) "Invalid list length")
+(test/exn (parse '{+}) "Invalid list length")
+(test/exn (parse '{with {{x 2} {x 3}} {x}}) "Symbol already taken")
+(test/exn (parse '{fun {x x} {x}}) "Symbol already taken") 
+
+;; operate tests
+(test (operate - (numV 2) (numV 2)) (numV 0))
+(test (operate + (numV 2) (numV 2)) (numV 4))
+(test (operate / (numV 2) (numV 2)) (numV 1))
+(test (operate * (numV 2) (numV 2)) (numV 4))
+(test/exn (operate / (numV 1) (numV 0)) "Division by 0")
+ 
+;;notinenv? tests
+(test (notinenv? (mtEnv) 'x) #t)
+(test (notinenv? (anEnv 'y (numV 2) (mtEnv)) 'x) #t)
+(test (notinenv? (anEnv 'x (numV 2) (mtEnv)) 'x) #f)
+
+;;generateEnv tests
+(test (generateEnv (list 'x 'y) (list (num 2) (num 3)) (mtEnv)) (anEnv 'y (numV 3) (anEnv 'x (numV 2) (mtEnv))))
+(test (generateEnv (list 'x 'y) (list (num 2) (num 3)) (anEnv 'z (numV 1) (mtEnv))) (anEnv 'y (numV 3) (anEnv 'x (numV 2) (anEnv 'z (numV 1) (mtEnv)))))
+(test/exn (generateEnv (list 'x 'y) (list (num 2) (num 3)) (anEnv 'y (numV 1) (mtEnv))) "Indentifier already bound")
+(test/exn (generateEnv (list 'x) (list (num 2) (num 3)) (anEnv 'y (numV 1) (mtEnv))) "Too many arguments")
+(test/exn (generateEnv (list 'x 'y 'z) (list (num 2) (num 3)) (anEnv 'w (numV 1) (mtEnv))) "More arguments were expected")
+
+;;lookup tests
+(test (lookup 'x (anEnv 'y (numV 1) (anEnv 'x (numV 2) (anEnv 'z (numV 3) (mtEnv))))) (numV 2))
+(test/exn (lookup 'w (anEnv 'y (numV 1) (anEnv 'x (numV 2) (anEnv 'z (numV 3) (mtEnv))))) "no binding for identifier")
+(test/exn (lookup 'x (mtEnv)) "no binding for identifier")
 
 ;;interp tests
-;;(test/exn (interp (binop / (num 8) (binop - (num 2) (num 2)))) "Division by 0")
-;;(test/exn (interp (with '() (binop + (id 'x) (num 2)))) "free identifier")
-;;(test (interp (with (list (binding 'x (num 2)) (binding 'y (num 3))) (with (list (binding 'z (binop + (id 'x) (id 'y)))) (binop + (id 'x) (id 'z))))) 7)
+(test/exn (interp (binop / (num 8) (binop - (num 2) (num 2))) (mtEnv)) "Division by 0")
+(test/exn (interp (app (id 'macaco) (list (num 2))) (mtEnv)) "no binding for identifier")
+(test/exn (interp (app (fun (list 'x) (if0 (binop * (id 'x) (id 'y)) (num 0) (num 1))) (list (binop / (num 6) (num 3)) (num 3))) (mtEnv)) "Too many arguments")
+(test/exn (interp (app (fun (list 'x 'y) (if0 (binop * (id 'x) (id 'y)) (num 0) (num 1))) (list (num 3))) (mtEnv)) "More arguments were expected")
+(test/exn (interp (app (fun (list 'x 'x) (if0 (binop * (id 'x) (id 'y)) (num 0) (num 1))) (list (num 2) (num 3))) (mtEnv)) "Indentifier already bound")
+(test (interp (app (fun (list 'x 'y) (if0 (binop * (id 'x) (id 'y)) (num 0) (num 1))) (list (binop / (num 6) (num 3)) (num 3))) (mtEnv)) (numV 1))
 
 ;;(parse(read))
 ;;(interp(parse(read)))
